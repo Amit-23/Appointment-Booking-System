@@ -1,23 +1,22 @@
-import "./components/Login"
-import Login from "./components/Login"
-import "./components/Register"
-import Register from "./components/Register"
+
+
+// App.js
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Register from "./components/Register/Register"
+import RoleSelection from './components/RoleSelection/RoleSelection';
+import ClientView from './components/ClientView/ClientView';
+import FreelancerView from './components/FreelancerView/FreelancerView';
+
 function App() {
-  
-
   return (
-    <>
-
-    <Login />
-    <Register />
-     
-      
-      
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <Router>
+      <Routes>
+        <Route path="/" element={<RoleSelection />} />
+        <Route path="/client" element={<ClientView />} />
+        <Route path="/freelancer" element={<FreelancerView />} />
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
