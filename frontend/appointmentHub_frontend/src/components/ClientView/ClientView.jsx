@@ -3,7 +3,6 @@ import Header1 from '../Header1/Header1';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-
 const ClientView = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -15,6 +14,7 @@ const ClientView = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,29 +22,66 @@ const ClientView = () => {
       ...prev,
       [name]: value
     }));
+    // Clear error for this field when typing
+    if (error?.errors?.[name]) {
+      setError(prev => {
+        const newErrors = {...prev.errors};
+        delete newErrors[name];
+        return {...prev, errors: newErrors};
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setSuccess(false);
 
     try {
-      // Replace with your actual API endpoint
-      const response = await axios.post('http://127.0.0.1:8000/create/clientsignup/', formData);
+      const response = await axios.post(
+        'http://127.0.0.1:8000/create/clientsignup/', 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
       
-      console.log('API Response:', response.data);
-      
-      // Handle successful registration
       if (response.data.success) {
-        // Redirect to login or dashboard after successful registration
-        navigate('/login', { state: { registered: true } });
-      } else {
-        setError(response.data.message || 'Registration failed');
+        setSuccess(true);
+        setFormData({ name: '', email: '', password: '' });
+        setTimeout(() => navigate('/login', { state: { registered: true } }), 3000);
       }
     } catch (err) {
-      console.error('API Error:', err);
-      setError(err.response?.data?.message || 'An error occurred during registration');
+      if (err.response) {
+        // Backend returned an error response
+        const backendError = err.response.data;
+        
+        if (backendError.errors) {
+          // Field-specific errors
+          setError({
+            message: 'Please fix the errors below',
+            errors: backendError.errors
+          });
+        } else {
+          // General error
+          const errorMessages = {
+            'Invalid data format': 'Please enter valid data',
+            'Server error': 'Something went wrong on our end',
+            'Method not allowed': 'Invalid request method'
+          };
+          
+          setError({
+            message: errorMessages[backendError.error] || backendError.error || 'Registration failed'
+          });
+        }
+      } else if (err.request) {
+        setError({ message: 'Network error - please check your connection' });
+      } else {
+        setError({ message: 'An unexpected error occurred' });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -56,14 +93,39 @@ const ClientView = () => {
       <div className="container mt-5">
         <div className="row justify-content-center">
           <div className="col-md-8 col-lg-6">
+            {/* Success Alert */}
+            {success && (
+              <div className="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <strong>Success!</strong> Account created successfully. Redirecting to login...
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setSuccess(false)}
+                  aria-label="Close"
+                ></button>
+              </div>
+            )}
+            
+            {/* General Error Alert */}
+            {error?.message && !error?.errors && (
+              <div className="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                <strong>Error!</strong> {error.message}
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setError(null)}
+                  aria-label="Close"
+                ></button>
+              </div>
+            )}
+            
             <div className="card shadow-sm border-0">
               <div className="card-body p-4">
                 <h2 className="text-center mb-4 text-primary">Client Sign Up</h2>
                 
-                {/* Display error message if any */}
-                {error && (
-                  <div className="alert alert-danger mb-4">
-                    {error}
+                {error?.message && error?.errors && (
+                  <div className="alert alert-warning mb-4">
+                    <strong>Notice:</strong> {error.message}
                   </div>
                 )}
                 
@@ -72,7 +134,7 @@ const ClientView = () => {
                     <label htmlFor="name" className="form-label">Full Name</label>
                     <input
                       type="text"
-                      className="form-control form-control-lg"
+                      className={`form-control form-control-lg ${error?.errors?.name ? 'is-invalid' : ''}`}
                       id="name"
                       name="name"
                       value={formData.name}
@@ -80,13 +142,18 @@ const ClientView = () => {
                       required
                       placeholder="Enter your full name"
                     />
+                    {error?.errors?.name && (
+                      <div className="invalid-feedback">
+                        {error.errors.name}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mb-3">
                     <label htmlFor="email" className="form-label">Email Address</label>
                     <input
                       type="email"
-                      className="form-control form-control-lg"
+                      className={`form-control form-control-lg ${error?.errors?.email ? 'is-invalid' : ''}`}
                       id="email"
                       name="email"
                       value={formData.email}
@@ -94,13 +161,18 @@ const ClientView = () => {
                       required
                       placeholder="Enter your email"
                     />
+                    {error?.errors?.email && (
+                      <div className="invalid-feedback">
+                        {error.errors.email}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mb-4">
                     <label htmlFor="password" className="form-label">Password</label>
                     <input
                       type="password"
-                      className="form-control form-control-lg"
+                      className={`form-control form-control-lg ${error?.errors?.password ? 'is-invalid' : ''}`}
                       id="password"
                       name="password"
                       value={formData.password}
@@ -109,6 +181,11 @@ const ClientView = () => {
                       placeholder="Create a password"
                       minLength="6"
                     />
+                    {error?.errors?.password && (
+                      <div className="invalid-feedback">
+                        {error.errors.password}
+                      </div>
+                    )}
                   </div>
 
                   <div className="d-grid mb-3">
@@ -164,6 +241,27 @@ const ClientView = () => {
         }
         .btn-primary:hover {
           background-color: #0b5ed7;
+        }
+        .alert-success {
+          animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+          from {
+            transform: translateY(-20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        .is-invalid {
+          border-color: #dc3545;
+        }
+        .invalid-feedback {
+          color: #dc3545;
+          font-size: 0.875em;
+          margin-top: 0.25rem;
         }
       `}</style>
     </>
