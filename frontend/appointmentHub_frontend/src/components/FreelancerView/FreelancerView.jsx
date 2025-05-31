@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
 import Header1 from '../Header1/Header1';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const FreelancerView = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { role } = location.state || {};
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     profession: '',
     experience: '',
-    bio: ''
+    bio: '',
+    role: 'freelancer'
   });
+
+  const [errorMessages, setErrorMessages] = useState({});
+  const [generalError, setGeneralError] = useState('');
 
   const professions = [
     'Software Developer',
@@ -40,15 +49,91 @@ const FreelancerView = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
-    // Add your form submission logic here
+    setErrorMessages({});
+    setGeneralError('');
+  
+    try {
+      const response = await axios.post(
+        'http://127.0.0.1:8000/create/usersignup/',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+  
+      if (response.data.success) {
+        toast.success(response.data.message || 'Signup successful!', {
+          position: 'top-center',
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+        });
+  
+        // Clear form after successful submission
+        setFormData({
+          name: '',
+          email: '',
+          password: '',
+          profession: '',
+          experience: '',
+          bio: '',
+          role: 'freelancer'
+        });
+  
+        // Redirect to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+      }
+    } catch (error) {
+      if (error.response) {
+        // Handle email already exists case
+        if (error.response.data?.errors?.email) {
+          toast.error(error.response.data.errors.email, {
+            position: 'top-center',
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+          });
+        }
+        // Handle other field errors
+        else if (error.response.data?.errors) {
+          setErrorMessages(error.response.data.errors);
+          toast.error('Please fix the errors in the form', {
+            position: 'top-center',
+            autoClose: 5000,
+          });
+        }
+        // Handle general error messages
+        else if (error.response.data?.message) {
+          toast.error(error.response.data.message, {
+            position: 'top-center',
+            autoClose: 5000,
+          });
+        }
+      } else {
+        toast.error('Network error. Please try again later.', {
+          position: 'top-center',
+          autoClose: 5000,
+        });
+      }
+    }
   };
 
   return (
     <>
       <Header1 />
+      <ToastContainer />
       <div className="container mt-4">
         <div className="row justify-content-center">
           <div className="col-lg-10">
@@ -57,6 +142,9 @@ const FreelancerView = () => {
                 <h3 className="text-center mb-0">Freelancer Sign Up</h3>
               </div>
               <div className="card-body p-4">
+                {generalError && (
+                  <div className="alert alert-danger">{generalError}</div>
+                )}
                 <form onSubmit={handleSubmit}>
                   <div className="row">
                     <div className="col-md-6 mb-3">
@@ -70,6 +158,7 @@ const FreelancerView = () => {
                         onChange={handleChange}
                         required
                       />
+                      {errorMessages.name && <div className="text-danger">{errorMessages.name}</div>}
                     </div>
 
                     <div className="col-md-6 mb-3">
@@ -83,6 +172,7 @@ const FreelancerView = () => {
                         onChange={handleChange}
                         required
                       />
+                      {errorMessages.email && <div className="text-danger">{errorMessages.email}</div>}
                     </div>
                   </div>
 
@@ -98,6 +188,7 @@ const FreelancerView = () => {
                         onChange={handleChange}
                         required
                       />
+                      {errorMessages.password && <div className="text-danger">{errorMessages.password}</div>}
                     </div>
 
                     <div className="col-md-6 mb-3">
@@ -115,6 +206,7 @@ const FreelancerView = () => {
                           <option key={index} value={profession}>{profession}</option>
                         ))}
                       </select>
+                      {errorMessages.profession && <div className="text-danger">{errorMessages.profession}</div>}
                     </div>
                   </div>
 
@@ -134,6 +226,7 @@ const FreelancerView = () => {
                           <option key={index} value={level}>{level}</option>
                         ))}
                       </select>
+                      {errorMessages.experience && <div className="text-danger">{errorMessages.experience}</div>}
                     </div>
                   </div>
 
@@ -148,6 +241,7 @@ const FreelancerView = () => {
                       onChange={handleChange}
                       placeholder="Tell us about your skills and experience"
                     ></textarea>
+                    {errorMessages.bio && <div className="text-danger">{errorMessages.bio}</div>}
                   </div>
 
                   <div className="d-grid gap-2">

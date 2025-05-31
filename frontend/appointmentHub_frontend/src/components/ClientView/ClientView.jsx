@@ -10,7 +10,8 @@ const ClientView = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: ''
+    password: '',
+    role: 'client'
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -40,7 +41,7 @@ const ClientView = () => {
 
     try {
       const response = await axios.post(
-        'http://127.0.0.1:8000/create/clientsignup/', 
+        'http://127.0.0.1:8000/create/usersignup/', 
         formData,
         {
           headers: {
