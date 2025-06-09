@@ -56,7 +56,7 @@ const FreelancerView = () => {
   
     try {
       const response = await axios.post(
-        'http://127.0.0.1:8000/create/usersignup/',
+        'http://127.0.0.1:8000/auth/usersignup/',
         formData,
         {
           headers: {

@@ -80,3 +80,10 @@ def user_signup(request):
         'error': 'Method not allowed',
         'message': 'Only POST requests are allowed'
     }, status=405)
+
+
+@csrf_exempt
+def login(request):
+    return JsonResponse({
+        'success':'Login success'
+    })

@@ -27,7 +27,7 @@ const Login = () => {
 
     try {
       // Replace with your actual login endpoint
-      const response = await axios.post('http://127.0.0.1:8000/api/login/', formData);
+      const response = await axios.post('http://127.0.0.1:8000/auth/login/', formData);
       
       if (response.data.success) {
         toast.success('Login successful!');
