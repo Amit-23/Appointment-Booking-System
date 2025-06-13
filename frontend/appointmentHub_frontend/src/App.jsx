@@ -3,6 +3,7 @@ import RoleSelection from './components/RoleSelection/RoleSelection';
 import ClientView from './components/ClientView/ClientView';
 import FreelancerView from './components/FreelancerView/FreelancerView';
 import Login from './components/Login/Login';
+import ClientDashboard from './components/ClientDashboard/ClientDashboard';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/client" element={<ClientView />} />
         <Route path="/freelancer" element={<FreelancerView />} />
         <Route path="/login" element={<Login />} />
+        <Route path='/clientdashboard' element={<ClientDashboard />} />
       </Routes>
     </Router>
   );

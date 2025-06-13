@@ -32,7 +32,7 @@ const Login = () => {
       if (response.data.success) {
         toast.success('Login successful!');
         // Handle successful login (store token, redirect, etc.)
-        setTimeout(() => navigate('/dashboard'), 1500);
+        setTimeout(() => navigate('/clientdashboard'), 1500);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login failed');
