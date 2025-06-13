@@ -146,16 +146,16 @@ const ClientDashboard = () => {
                 <label>Category</label>
                 <select className="form-select">
                   <option>Select</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="lawyer">Lawyer</option>
+                  <option value="tutor">Tutor</option>
                 </select>
               </div>
               <div className="col-md-3">
                 <label>Date</label>
                 <input type="date" className="form-control" />
               </div>
-              <div className="col-md-3">
-                <label>Time</label>
-                <input type="time" className="form-control" />
-              </div>
+             
               <div className="col-md-3">
                 <button className="btn btn-primary w-100">Search</button>
               </div>

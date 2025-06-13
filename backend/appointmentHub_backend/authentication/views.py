@@ -3,7 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from .models import UserAccount  # Correct import
 from django.contrib.auth.hashers import make_password
-
+from django.views.decorators.http import require_GET
 @csrf_exempt
 def user_signup(request):
     if request.method == 'POST':
@@ -87,3 +87,27 @@ def login(request):
     return JsonResponse({
         'success':'Login success'
     })
+
+
+
+@require_GET
+@csrf_exempt
+def getFreelencers(request):
+    try:
+        freelancers = UserAccount.objects.filter(
+            role='freelancer'
+        ).exclude(profession__isnull=True).exclude(profession__exact='')
+
+        professions = freelancers.values_list('profession', flat=True).distinct()
+
+        return JsonResponse({
+            'success': True,
+            'professions': list(professions)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'Internal server error'
+        }, status=500)
