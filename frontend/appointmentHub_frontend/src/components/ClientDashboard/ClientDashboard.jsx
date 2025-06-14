@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FaBars,
   FaSearch,
@@ -6,9 +6,22 @@ import {
   FaUserCog,
   FaTachometerAlt,
 } from 'react-icons/fa';
+import axios from 'axios';
 
 const ClientDashboard = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    axios.get('http://127.0.0.1:8000/auth/getfreelencers/')
+    .then(response => {
+        if(response.data.success){
+            setCategories(response.data.professions);
+        }
+    })
+
+
+  },[]);
 
   return (
     <div className="container-fluid" style={{ backgroundColor: '#f9f9f9', minHeight: '100vh' }}>
@@ -145,10 +158,10 @@ const ClientDashboard = () => {
               <div className="col-md-3">
                 <label>Category</label>
                 <select className="form-select">
-                  <option>Select</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="lawyer">Lawyer</option>
-                  <option value="tutor">Tutor</option>
+                  <option value="">Select</option>
+                 {categories.map((cat,idx) => (
+                    <option key={idx} value={cat}>{cat}</option>
+                 ))}
                 </select>
               </div>
               <div className="col-md-3">
