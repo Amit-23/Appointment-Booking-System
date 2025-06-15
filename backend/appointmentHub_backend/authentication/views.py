@@ -1,7 +1,8 @@
 from django.http import JsonResponse
+from datetime import datetime
 from django.views.decorators.csrf import csrf_exempt
 import json
-from .models import UserAccount, FreelancerAvailability
+from .models import UserAccount, FreelancerAvailability, Appointment
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth.hashers import make_password
 from django.views.decorators.http import require_GET
@@ -195,6 +196,7 @@ def get_available_freelancers(request):
             'email': slot.freelancer.email,
             'profession': slot.freelancer.profession,
             'start_time': slot.start_time.strftime('%H:%M'),
+            'end_time': slot.end_time.strftime('%H:%M'),
            
         }
         for slot in availability
@@ -225,4 +227,40 @@ def add_availability(request):
 
         return JsonResponse({'success': True, 'message': 'Availability added'})
     except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+  
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def book_appointment(request):
+    print("request came")
+    try:
+        print("try invoked")
+        data = json.loads(request.body)
+        print(data)
+        client_id = data.get('client_id')
+        freelancer_id = data.get('freelancer_id')
+        date = data.get('date')  # string: '2025-06-15'
+        start_time = data.get('start_time')  # string: '14:32'
+
+        client = UserAccount.objects.get(id=client_id, role='client')
+        freelancer = UserAccount.objects.get(id=freelancer_id, role='freelancer')
+
+        # Convert strings to proper Python date/time
+        appointment_date = datetime.strptime(date, "%Y-%m-%d").date()
+        appointment_time = datetime.strptime(start_time, "%H:%M").time()
+
+        Appointment.objects.create(
+            client=client,
+            freelancer=freelancer,
+            date=appointment_date,
+            start_time=appointment_time,
+            status='pending'
+        )
+
+        return JsonResponse({'success': True, 'message': 'Appointment booked successfully'})
+
+    except Exception as e:
+        print("❌ Error:", str(e))
         return JsonResponse({'success': False, 'error': str(e)}, status=500)

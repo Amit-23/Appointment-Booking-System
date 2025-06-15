@@ -22,7 +22,7 @@ const FreelancerView = () => {
 
   const [errorMessages, setErrorMessages] = useState({});
   const [generalError, setGeneralError] = useState('');
-
+ 
   const professions = [
     'Software Developer',
     'Web Designer',

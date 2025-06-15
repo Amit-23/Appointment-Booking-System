@@ -45,6 +45,31 @@ const ClientDashboard = () => {
       .catch(err => console.error("Error fetching available freelancers:", err));
   };
 
+  // Handle book appointment
+  const handleBookAppointment = (freelancer) => {
+    const user = JSON.parse(localStorage.getItem('user')); // get logged-in client
+  
+  
+    axios.post('http://127.0.0.1:8000/auth/book-appointment/', {
+      client_id: user.id,
+      freelancer_id: freelancer.id,
+      date: selectedDate,
+      start_time: freelancer.start_time
+    })
+    .then(res => {
+      if (res.data.success) {
+        alert('Appointment booked successfully!');
+      } else {
+        alert(res.data.message || 'Could not book appointment.');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Failed to book appointment.');
+    });
+  };
+  
+
   return (
     <div className="container-fluid" style={{ backgroundColor: '#f9f9f9', minHeight: '100vh' }}>
       <style>{`
@@ -218,7 +243,13 @@ const ClientDashboard = () => {
                   <h6>{f.name} ({f.profession})</h6>
                   <p>Email: {f.email}</p>
                   <p>Available from {f.start_time} to {f.end_time}</p>
-                  <button className="btn btn-sm btn-success">Book Appointment</button>
+                  <button
+            className="btn btn-sm btn-success"
+             onClick={() => handleBookAppointment(f)}
+    >
+             Book Appointment
+                </button>
+
                 </div>
               ))
             )}
