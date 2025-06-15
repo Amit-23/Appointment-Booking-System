@@ -25,42 +25,40 @@ class UserAccount(models.Model):
     def __str__(self):
         return f"{self.name} ({self.role})"
 
-
 class Appointment(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Pending'), # Appointment booked but not responded to
-        ('accepted', 'Accepted'), # Freelancer has accepted it
-        ('rejected', 'Rejected'), # Freelancer has rejected it
-        ('cancelled', 'Cancelled'), # Client cancelled the appointment
-        ('completed', 'Completed'), # Appointment has been completed
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
     ]
 
-    # client: who booked the appointment
     client = models.ForeignKey(
         'UserAccount',
         on_delete=models.CASCADE,
-        related_name='appointments_made'  # access with client.appointments_made.all()
+        related_name='appointments_made'
     )
-
-    # freelancer: who was booked
     freelancer = models.ForeignKey(
         'UserAccount',
         on_delete=models.CASCADE,
-        related_name='appointments_received'  # access with freelancer.appointments_received.all()
+        related_name='appointments_received'
     )
 
-    # Date and time of the appointment
     date = models.DateField()
-    
+    start_time = models.TimeField() 
 
-    # Status of the appointment
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-
-    # Optional message or reason from client while booking
-    message = models.TextField(blank=True, null=True)
-
-    # Auto-set when the appointment was created
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.client.name} → {self.freelancer.name} on {self.date} ({self.status})"
+        return f"{self.client.name} → {self.freelancer.name} on {self.date} at {self.start_time} ({self.status})"
+
+class FreelancerAvailability(models.Model):
+    freelancer = models.ForeignKey(UserAccount, on_delete=models.CASCADE, related_name='availability')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    
+    def __str__(self):
+        return f"{self.freelancer.name} available on {self.date} from {self.start_time} to {self.end_time}"

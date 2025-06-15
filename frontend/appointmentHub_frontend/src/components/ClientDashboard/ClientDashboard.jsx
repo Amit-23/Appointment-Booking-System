@@ -11,17 +11,39 @@ import axios from 'axios';
 const ClientDashboard = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [availableFreelancers, setAvailableFreelancers] = useState([]);
 
+  // Load available categories (professions)
   useEffect(() => {
     axios.get('http://127.0.0.1:8000/auth/getfreelencers/')
-    .then(response => {
-        if(response.data.success){
-            setCategories(response.data.professions);
+      .then(response => {
+        if (response.data.success) {
+          setCategories(response.data.professions);
         }
+      })
+      .catch(err => console.error("Error fetching categories:", err));
+  }, []);
+
+  // Handle search click
+  const handleSearch = () => {
+    if (!selectedDate) return alert("Please select a date");
+
+    axios.get('http://127.0.0.1:8000/auth/available-freelancers/', {
+      params: {
+        date: selectedDate,
+        category: selectedCategory
+      }
     })
-
-
-  },[]);
+      .then(res => {
+        console.log("API response:", res.data);
+        if (res.data.success) {
+          setAvailableFreelancers(res.data.freelancers);
+        }
+      })
+      .catch(err => console.error("Error fetching available freelancers:", err));
+  };
 
   return (
     <div className="container-fluid" style={{ backgroundColor: '#f9f9f9', minHeight: '100vh' }}>
@@ -157,56 +179,52 @@ const ClientDashboard = () => {
             <div className="row g-2 align-items-end">
               <div className="col-md-3">
                 <label>Category</label>
-                <select className="form-select">
+                <select
+                  className="form-select"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                >
                   <option value="">Select</option>
-                 {categories.map((cat,idx) => (
+                  {categories.map((cat, idx) => (
                     <option key={idx} value={cat}>{cat}</option>
-                 ))}
+                  ))}
                 </select>
               </div>
               <div className="col-md-3">
                 <label>Date</label>
-                <input type="date" className="form-control" />
+                <input
+                  type="date"
+                  className="form-control"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
               </div>
-             
               <div className="col-md-3">
-                <button className="btn btn-primary w-100">Search</button>
+                <button className="btn btn-primary w-100" onClick={handleSearch}>
+                  Search
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Appointments */}
-          <div className="mt-5">
-            <h5>My Appointments</h5>
-            <table className="table mt-3">
-              <thead>
-                <tr>
-                  <th>Professional</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Dr. Smith (Doctor)</td>
-                  <td>April 25, 2024 – 5:00 PM</td>
-                  <td><span className="badge bg-success">Confirmed</span></td>
-                </tr>
-                <tr>
-                  <td>Ms. Johnson (Tutor)</td>
-                  <td>April 20, 2024 – 3:00 PM</td>
-                  <td><span className="badge bg-secondary">Completed</span></td>
-                </tr>
-                <tr>
-                  <td>Mr. Brown (Lawyer)</td>
-                  <td>April 13, 2024 – 2:00 PM</td>
-                  <td><span className="badge bg-danger">Cancelled</span></td>
-                </tr>
-              </tbody>
-            </table>
+          {/* Available Freelancers */}
+          <div className="mt-4">
+            <h5>Available Freelancers</h5>
+            {availableFreelancers.length === 0 ? (
+              <p>No freelancers available for selected date and category.</p>
+            ) : (
+              availableFreelancers.map((f, idx) => (
+                <div key={idx} className="card p-3 mb-2">
+                  <h6>{f.name} ({f.profession})</h6>
+                  <p>Email: {f.email}</p>
+                  <p>Available from {f.start_time} to {f.end_time}</p>
+                  <button className="btn btn-sm btn-success">Book Appointment</button>
+                </div>
+              ))
+            )}
           </div>
 
-          {/* Feedback */}
+          {/* Feedback Section (optional static content) */}
           <div className="mt-5">
             <h5>Review & Feedback</h5>
             <p>Ms. Johnson — ★★★★☆</p>

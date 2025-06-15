@@ -26,13 +26,23 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Replace with your actual login endpoint
       const response = await axios.post('http://127.0.0.1:8000/auth/login/', formData);
       
       if (response.data.success) {
         toast.success('Login successful!');
-        // Handle successful login (store token, redirect, etc.)
-        setTimeout(() => navigate('/clientdashboard'), 1500);
+        // Store user data in localStorage or context as needed
+         localStorage.setItem('user', JSON.stringify(response.data.user));
+        
+        // Redirect based on role
+        if (response.data.user.role === 'client') {
+          setTimeout(() => navigate('/clientdashboard'), 1500);
+        } else if (response.data.user.role === 'freelancer') {
+          setTimeout(() => navigate('/freelancerdashboard'), 1500);
+        } else {
+          // Handle other roles or unexpected values
+          toast.warning('Unknown user role');
+          setTimeout(() => navigate('/'), 1500);
+        }
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login failed');
