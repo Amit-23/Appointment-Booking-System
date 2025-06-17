@@ -8,5 +8,6 @@ urlpatterns = [
     path('available-freelancers/',views.get_available_freelancers),
     path('addavailability/',views.add_availability),
     path('book-appointment/', views.book_appointment, name='book-appointment'),
+    path('freelancer-appointments/', views.get_freelancer_appointments),
    
 ]

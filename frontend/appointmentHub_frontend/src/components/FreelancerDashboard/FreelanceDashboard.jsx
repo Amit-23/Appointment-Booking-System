@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FaBars,
   FaUser,
@@ -15,6 +15,23 @@ const FreelancerDashboard = () => {
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [appointments, setAppointments] = useState([]);
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'freelancer') return;
+
+    axios.get('http://127.0.0.1:8000/auth/freelancer-appointments/', {
+      params: { freelancer_id: user.id }
+    })
+    .then(res => {
+      if (res.data.success) {
+        setAppointments(res.data.appointments);
+        console.log(res.data.appointments);
+      }
+    })
+    .catch(err => console.error('Failed to fetch appointments:', err));
+  }, []);
 
   const handleAddAvailability = () => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -173,28 +190,51 @@ const FreelancerDashboard = () => {
 
           <div className="mt-4">
             <h5>Appointments</h5>
-            <table className="table mt-3">
-              <thead>
+            <table className="table table-bordered table-hover mt-3">
+              <thead className="table-light">
                 <tr>
                   <th>Client</th>
                   <th>Date</th>
+                  <th>Time</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>John Doe</td>
-                  <td>Apr 23, 2024</td>
-                  <td>Pending</td>
-                  <td><button className="btn btn-sm btn-success">Accept</button> <button className="btn btn-sm btn-danger">Reject</button></td>
-                </tr>
-                <tr>
-                  <td>Emily Smith</td>
-                  <td>Apr 24, 2024</td>
-                  <td>Confirmed</td>
-                  <td><button className="btn btn-sm btn-secondary">Mark as Completed</button></td>
-                </tr>
+                {appointments.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="text-center">No appointments found</td>
+                  </tr>
+                ) : (
+                  appointments.map((appt, idx) => (
+                    <tr key={idx}>
+                      <td>{appt.client_name}</td>
+                      <td>{appt.date}</td>
+                      <td>{appt.start_time}</td>
+                      <td>
+                        <span className={`badge ${
+                          appt.status === 'pending' ? 'bg-warning text-dark' :
+                          appt.status === 'accepted' ? 'bg-success' :
+                          appt.status === 'rejected' ? 'bg-danger' :
+                          appt.status === 'cancelled' ? 'bg-secondary' :
+                          appt.status === 'completed' ? 'bg-info' : 'bg-light'
+                        }`}>
+                          {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
+                        </span>
+                      </td>
+                      <td>
+                        {appt.status === 'pending' ? (
+                          <>
+                            <button className="btn btn-sm btn-success me-2">Accept</button>
+                            <button className="btn btn-sm btn-danger">Reject</button>
+                          </>
+                        ) : (
+                          <span className="text-muted">No actions</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -218,6 +258,7 @@ const FreelancerDashboard = () => {
               </tbody>
             </table>
           </div>
+
         </div>
       </div>
     </div>

@@ -264,3 +264,35 @@ def book_appointment(request):
     except Exception as e:
         print("❌ Error:", str(e))
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+
+@csrf_exempt
+@require_GET
+def get_freelancer_appointments(request):
+    try:
+        freelancer_id = request.GET.get('freelancer_id')
+
+        if not freelancer_id:
+            return JsonResponse({'success': False, 'error': 'freelancer_id required'}, status=400)
+
+        freelancer = UserAccount.objects.get(id=freelancer_id, role='freelancer')
+
+        appointments = Appointment.objects.filter(freelancer=freelancer).order_by('-date')
+
+        data = []
+        for appt in appointments:
+            data.append({
+                'client_name': appt.client.name,
+                'date': appt.date.strftime('%Y-%m-%d'),
+                'start_time': appt.start_time.strftime('%H:%M'),
+                'status': appt.status,
+                'appointment_id': appt.id
+            })
+
+        return JsonResponse({'success': True, 'appointments': data})
+
+    except UserAccount.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Freelancer not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
