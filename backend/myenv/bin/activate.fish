@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV /home/amit/Desktop/AppointmentHub/backend/myenv
+set -gx VIRTUAL_ENV /home/vboxuser/Desktop/Appointment-Booking-System/backend/myenv
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/"bin $PATH
