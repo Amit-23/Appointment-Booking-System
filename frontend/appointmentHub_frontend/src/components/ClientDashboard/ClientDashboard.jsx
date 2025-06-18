@@ -14,6 +14,25 @@ const ClientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [availableFreelancers, setAvailableFreelancers] = useState([]);
+  const [myAppointments, setMyAppointments] = useState([]);
+
+
+  //fetch appointments booked by the client
+  useEffect(() => {
+  const user = JSON.parse(localStorage.getItem('user'));
+  if (!user || user.role !== 'client') return;
+
+  axios.get('http://127.0.0.1:8000/auth/client-appointments/', {
+    params: { client_id: user.id }
+  })
+  .then(res => {
+    if (res.data.success) {
+      setMyAppointments(res.data.appointments);
+    }
+  })
+  .catch(err => console.error('Error fetching my appointments:', err));
+}, []);
+
 
   // Load available categories (professions)
   useEffect(() => {
@@ -254,6 +273,48 @@ const ClientDashboard = () => {
               ))
             )}
           </div>
+
+          <div className="mt-5">
+  <h5>My Appointments</h5>
+  <table className="table table-bordered table-hover mt-3">
+    <thead className="table-light">
+      <tr>
+        <th>Name</th>
+        <th>Appointment Date</th>
+        <th> Appointment Time</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {myAppointments.length === 0 ? (
+        <tr>
+          <td colSpan="4" className="text-center">No appointments yet</td>
+        </tr>
+      ) : (
+        myAppointments.map((appt, idx) => (
+          <tr key={idx}>
+            <td>{appt.freelancer_name}</td>
+            <td>{appt.date}</td>
+            <td>{appt.start_time}</td>
+            <td>
+              <span className={`badge ${
+                appt.status === 'pending'   ? 'bg-warning text-dark' :
+                appt.status === 'accepted'  ? 'bg-success' :
+                appt.status === 'rejected'  ? 'bg-danger' :
+                appt.status === 'cancelled' ? 'bg-secondary' :
+                appt.status === 'completed' ? 'bg-info'    :
+                'bg-light'
+              }`}>
+                {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
+              </span>
+            </td>
+          </tr>
+        ))
+      )}
+    </tbody>
+  </table>
+</div>
+
 
           {/* Feedback Section (optional static content) */}
           <div className="mt-5">

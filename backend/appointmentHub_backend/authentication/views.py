@@ -234,9 +234,8 @@ def add_availability(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def book_appointment(request):
-    print("request came")
     try:
-        print("try invoked")
+        
         data = json.loads(request.body)
         print(data)
         client_id = data.get('client_id')
@@ -296,3 +295,27 @@ def get_freelancer_appointments(request):
         return JsonResponse({'success': False, 'error': 'Freelancer not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_GET
+def get_client_appointments(request):
+    client_id = request.GET.get('client_id')
+    if not client_id:
+        return JsonResponse({'success': False, 'error': 'client_id required'}, status=400)
+
+    try:
+        client = UserAccount.objects.get(id=client_id, role='client')
+    except UserAccount.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Client not found'}, status=404)
+
+    appts = Appointment.objects.filter(client=client).order_by('-date')
+    data = []
+    for appt in appts:
+        data.append({
+            'appointment_id': appt.id,
+            'freelancer_name': appt.freelancer.name,
+            'date': appt.date.strftime('%Y-%m-%d'),
+            'start_time': appt.start_time.strftime('%H:%M'),
+            'status': appt.status
+        })
+    return JsonResponse({'success': True, 'appointments': data})
