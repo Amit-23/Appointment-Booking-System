@@ -10,5 +10,6 @@ urlpatterns = [
     path('book-appointment/', views.book_appointment, name='book-appointment'),
     path('freelancer-appointments/', views.get_freelancer_appointments),
     path('client-appointments/',views.get_client_appointments),
+    path('update-appointment-status/',views.update_appointment_status),
    
 ]

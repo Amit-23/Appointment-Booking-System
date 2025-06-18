@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FaBars,
   FaUser,
@@ -17,6 +17,7 @@ const FreelancerDashboard = () => {
   const [endTime, setEndTime] = useState('');
   const [appointments, setAppointments] = useState([]);
 
+  // Fetch freelancer's appointments on mount
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || user.role !== 'freelancer') return;
@@ -27,12 +28,12 @@ const FreelancerDashboard = () => {
     .then(res => {
       if (res.data.success) {
         setAppointments(res.data.appointments);
-        console.log(res.data.appointments);
       }
     })
     .catch(err => console.error('Failed to fetch appointments:', err));
   }, []);
 
+  // Add availability handler
   const handleAddAvailability = () => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || user.role !== 'freelancer') {
@@ -58,6 +59,32 @@ const FreelancerDashboard = () => {
     .catch(err => {
       console.error(err);
       alert('Error adding availability');
+    });
+  };
+
+  // Accept/Reject handler
+  const handleChangeStatus = (appointmentId, newStatus) => {
+    axios.post('http://127.0.0.1:8000/auth/update-appointment-status/', {
+      appointment_id: appointmentId,
+      status: newStatus
+    })
+    .then(res => {
+      if (res.data.success) {
+        // update local state so UI refreshes
+        setAppointments(prev =>
+          prev.map(a =>
+            a.appointment_id === appointmentId
+              ? { ...a, status: newStatus }
+              : a
+          )
+        );
+      } else {
+        alert(res.data.error || 'Could not update status');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Error updating status');
     });
   };
 
@@ -139,6 +166,7 @@ const FreelancerDashboard = () => {
           <h4>Welcome, Jane Doe</h4>
 
           <div className="row mt-4">
+            {/* Profile Approval Card */}
             <div className="col-md-6">
               <div className="card p-3 mb-3">
                 <h6>Profile Approval</h6>
@@ -152,6 +180,8 @@ const FreelancerDashboard = () => {
                 <button className="btn btn-sm btn-outline-primary mt-2">Edit Profile</button>
               </div>
             </div>
+
+            {/* This Week Card */}
             <div className="col-md-6">
               <div className="card p-3 mb-3">
                 <h6>This Week</h6>
@@ -161,33 +191,55 @@ const FreelancerDashboard = () => {
             </div>
           </div>
 
+          {/* Manage Availability */}
           <div className="mt-4">
             <h5>Manage Availability</h5>
             <div className="d-flex gap-2">
-              <button className="btn btn-primary" onClick={() => setShowAvailabilityForm(!showAvailabilityForm)}>Add Availability</button>
+              <button className="btn btn-primary" onClick={() => setShowAvailabilityForm(!showAvailabilityForm)}>
+                Add Availability
+              </button>
               <button className="btn btn-outline-secondary">Edit / Unavailable</button>
             </div>
+
             {showAvailabilityForm && (
               <div className="card p-3 mt-3">
                 <div className="row g-3">
                   <div className="col-md-4">
                     <label>Date</label>
-                    <input type="date" className="form-control" value={date} onChange={(e) => setDate(e.target.value)} />
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={date}
+                      onChange={e => setDate(e.target.value)}
+                    />
                   </div>
                   <div className="col-md-4">
                     <label>Start Time</label>
-                    <input type="time" className="form-control" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                    <input
+                      type="time"
+                      className="form-control"
+                      value={startTime}
+                      onChange={e => setStartTime(e.target.value)}
+                    />
                   </div>
                   <div className="col-md-4">
                     <label>End Time</label>
-                    <input type="time" className="form-control" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                    <input
+                      type="time"
+                      className="form-control"
+                      value={endTime}
+                      onChange={e => setEndTime(e.target.value)}
+                    />
                   </div>
                 </div>
-                <button className="btn btn-success mt-3" onClick={handleAddAvailability}>Submit Availability</button>
+                <button className="btn btn-success mt-3" onClick={handleAddAvailability}>
+                  Submit Availability
+                </button>
               </div>
             )}
           </div>
 
+          {/* Appointments Table */}
           <div className="mt-4">
             <h5>Appointments</h5>
             <table className="table table-bordered table-hover mt-3">
@@ -213,11 +265,12 @@ const FreelancerDashboard = () => {
                       <td>{appt.start_time}</td>
                       <td>
                         <span className={`badge ${
-                          appt.status === 'pending' ? 'bg-warning text-dark' :
-                          appt.status === 'accepted' ? 'bg-success' :
-                          appt.status === 'rejected' ? 'bg-danger' :
+                          appt.status === 'pending'   ? 'bg-warning text-dark' :
+                          appt.status === 'accepted'  ? 'bg-success' :
+                          appt.status === 'rejected'  ? 'bg-danger' :
                           appt.status === 'cancelled' ? 'bg-secondary' :
-                          appt.status === 'completed' ? 'bg-info' : 'bg-light'
+                          appt.status === 'completed' ? 'bg-info'    :
+                          'bg-light'
                         }`}>
                           {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
                         </span>
@@ -225,8 +278,18 @@ const FreelancerDashboard = () => {
                       <td>
                         {appt.status === 'pending' ? (
                           <>
-                            <button className="btn btn-sm btn-success me-2">Accept</button>
-                            <button className="btn btn-sm btn-danger">Reject</button>
+                            <button
+                              className="btn btn-sm btn-success me-2"
+                              onClick={() => handleChangeStatus(appt.appointment_id, 'accepted')}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleChangeStatus(appt.appointment_id, 'rejected')}
+                            >
+                              Reject
+                            </button>
                           </>
                         ) : (
                           <span className="text-muted">No actions</span>
@@ -239,6 +302,7 @@ const FreelancerDashboard = () => {
             </table>
           </div>
 
+          {/* Client Reviews */}
           <div className="mt-4">
             <h5>Client Reviews</h5>
             <table className="table">
@@ -258,7 +322,6 @@ const FreelancerDashboard = () => {
               </tbody>
             </table>
           </div>
-
         </div>
       </div>
     </div>
