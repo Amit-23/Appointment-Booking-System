@@ -6,7 +6,8 @@ import {
   FaUserCog,
   FaTachometerAlt,
   FaStar,
-  FaClock
+  FaClock,
+  FaMoneyBillWave
 } from 'react-icons/fa';
 import axios from 'axios';
 
@@ -19,6 +20,7 @@ const FreelancerDashboard = () => {
   const [appointments, setAppointments] = useState([]);
   const [availabilities, setAvailabilities] = useState([]);
   const [selectedSection, setSelectedSection] = useState('dashboard');
+  const [earnings, setEarnings] = useState(0);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -32,6 +34,11 @@ const FreelancerDashboard = () => {
       .then((res) => {
         if (res.data.success) {
           setAppointments(res.data.appointments);
+          // Calculate earnings from completed appointments
+          const completedEarnings = res.data.appointments
+            .filter(a => a.status === 'completed')
+            .reduce((sum, appt) => sum + (appt.price || 0), 0);
+          setEarnings(completedEarnings);
         }
       })
       .catch((err) => console.error('Failed to fetch appointments:', err));
@@ -98,6 +105,22 @@ const FreelancerDashboard = () => {
                 : a
             )
           );
+          // Update earnings if status changed to/from completed
+          if (newStatus === 'completed' || res.data.previous_status === 'completed') {
+            const user = JSON.parse(localStorage.getItem('user'));
+            axios
+              .get('http://127.0.0.1:8000/auth/freelancer-appointments/', {
+                params: { freelancer_id: user.id },
+              })
+              .then((res) => {
+                if (res.data.success) {
+                  const completedEarnings = res.data.appointments
+                    .filter(a => a.status === 'completed')
+                    .reduce((sum, appt) => sum + (appt.price || 0), 0);
+                  setEarnings(completedEarnings);
+                }
+              });
+          }
         } else {
           alert(res.data.error || 'Could not update status');
         }
@@ -107,6 +130,13 @@ const FreelancerDashboard = () => {
         alert('Error updating status');
       });
   };
+
+  // Calculate appointment statistics
+  const totalAppointments = appointments.length;
+  const completedAppointments = appointments.filter(a => a.status === 'completed').length;
+  const pendingAppointments = appointments.filter(a => a.status === 'pending').length;
+  const rejectedAppointments = appointments.filter(a => a.status === 'rejected').length;
+  const acceptedAppointments = appointments.filter(a => a.status === 'accepted').length;
 
   return (
     <div className="container-fluid" style={{ backgroundColor: '#f9f9f9', minHeight: '100vh' }}>
@@ -184,7 +214,7 @@ const FreelancerDashboard = () => {
 
         {/* Main Content */}
         <div className={`main-content ${collapsed ? 'collapsed' : 'expanded'} p-4`} style={{ flex: 1 }}>
-          <h4>Welcome, Jane Doe</h4>
+          <h4>Welcome, {JSON.parse(localStorage.getItem('user'))?.name || 'Freelancer'}</h4>
 
           {selectedSection === 'dashboard' && (
             <>
@@ -193,33 +223,42 @@ const FreelancerDashboard = () => {
                 <div className="col-md-3">
                   <div className="card bg-primary text-white p-3">
                     <h6>Total Appointments</h6>
-                    <h3>24</h3>
-                    <small>This month</small>
+                    <h3>{totalAppointments}</h3>
+                    <small>All time appointments</small>
                   </div>
                 </div>
-                <div className="col-md-3">
-                  <div className="card bg-success text-white p-3">
-                    <h6>Completed</h6>
-                    <h3>18</h3>
-                    <small>75% completion rate</small>
-                  </div>
-                </div>
+                
                 <div className="col-md-3">
                   <div className="card bg-warning text-dark p-3">
                     <h6>Pending</h6>
-                    <h3>4</h3>
-                    <small>Needs attention</small>
+                    <h3>{pendingAppointments}</h3>
+                    <small>Awaiting your response</small>
+                  </div>
+                </div>
+                
+              </div>
+
+              {/* Additional Stats Row */}
+              <div className="row mb-4">
+                <div className="col-md-3">
+                  <div className="card bg-secondary text-white p-3">
+                    <h6>Accepted</h6>
+                    <h3>{acceptedAppointments}</h3>
+                    <small>Upcoming sessions</small>
                   </div>
                 </div>
                 <div className="col-md-3">
-                  <div className="card bg-info text-white p-3">
-                    <h6>Earnings</h6>
-                    <h3>$1,850</h3>
-                    <small>This month</small>
+                  <div className="card bg-danger text-white p-3">
+                    <h6>Rejected</h6>
+                    <h3>{rejectedAppointments}</h3>
+                    <small>Declined appointments</small>
                   </div>
                 </div>
+                
+               
               </div>
 
+            
               {/* Upcoming Appointments */}
               <div className="card mb-4">
                 <div className="card-header d-flex justify-content-between align-items-center">
@@ -227,23 +266,23 @@ const FreelancerDashboard = () => {
                   <button className="btn btn-sm btn-outline-primary">View All</button>
                 </div>
                 <div className="card-body">
-                  {appointments.slice(0, 3).map((appt, idx) => (
-                    <div key={idx} className="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
-                      <div>
-                        <h6 className="mb-1">{appt.client_name}</h6>
-                        <small className="text-muted">
-                          {appt.date} at {appt.start_time}
-                        </small>
+                  {appointments
+                    .filter(a => a.status === 'accepted')
+                    .slice(0, 3)
+                    .map((appt, idx) => (
+                      <div key={idx} className="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
+                        <div>
+                          <h6 className="mb-1">{appt.client_name}</h6>
+                          <small className="text-muted">
+                            {appt.date} at {appt.start_time}
+                          </small>
+                        </div>
+                        <span className="badge bg-success">
+                          Accepted
+                        </span>
                       </div>
-                      <span className={`badge ${
-                        appt.status === 'pending' ? 'bg-warning text-dark' :
-                        appt.status === 'accepted' ? 'bg-success' : 'bg-secondary'
-                      }`}>
-                        {appt.status}
-                      </span>
-                    </div>
-                  ))}
-                  {appointments.length === 0 && (
+                    ))}
+                  {appointments.filter(a => a.status === 'accepted').length === 0 && (
                     <div className="text-center py-3 text-muted">
                       No upcoming appointments
                     </div>
@@ -270,7 +309,7 @@ const FreelancerDashboard = () => {
                           <FaStar className="text-muted" />
                         </div>
                       </div>
-                      <p className="mb-0">Jane was very professional and helped me solve my problem quickly.</p>
+                      <p className="mb-0">"Great service! Very professional and knowledgeable."</p>
                       <small className="text-muted">2 days ago</small>
                     </div>
                   </div>
@@ -287,7 +326,7 @@ const FreelancerDashboard = () => {
                           <FaStar />
                         </div>
                       </div>
-                      <p className="mb-0">Excellent service! Will definitely book again.</p>
+                      <p className="mb-0">"Excellent service! Will definitely book again."</p>
                       <small className="text-muted">1 week ago</small>
                     </div>
                   </div>
@@ -295,7 +334,7 @@ const FreelancerDashboard = () => {
               </div>
 
               {/* Quick Actions */}
-              <div className="card mb-4">
+              <div className="card">
                 <div className="card-header">
                   <h5 className="mb-0">Quick Actions</h5>
                 </div>
@@ -328,72 +367,10 @@ const FreelancerDashboard = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Performance Metrics */}
-              <div className="card">
-                <div className="card-header">
-                  <h5 className="mb-0">Performance Metrics</h5>
-                </div>
-                <div className="card-body">
-                  <div className="row">
-                    <div className="col-md-6 mb-3">
-                      <div className="d-flex align-items-center">
-                        <div className="me-3">
-                          <div className="bg-primary rounded-circle p-3 text-white">
-                            <FaStar size={20} />
-                          </div>
-                        </div>
-                        <div>
-                          <h5 className="mb-0">4.8</h5>
-                          <small className="text-muted">Average Rating</small>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <div className="d-flex align-items-center">
-                        <div className="me-3">
-                          <div className="bg-success rounded-circle p-3 text-white">
-                            <FaCalendarAlt size={20} />
-                          </div>
-                        </div>
-                        <div>
-                          <h5 className="mb-0">92%</h5>
-                          <small className="text-muted">Completion Rate</small>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="d-flex align-items-center">
-                        <div className="me-3">
-                          <div className="bg-info rounded-circle p-3 text-white">
-                            <FaUser size={20} />
-                          </div>
-                        </div>
-                        <div>
-                          <h5 className="mb-0">18</h5>
-                          <small className="text-muted">Repeat Clients</small>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="d-flex align-items-center">
-                        <div className="me-3">
-                          <div className="bg-warning rounded-circle p-3 text-dark">
-                            <FaClock size={20} />
-                          </div>
-                        </div>
-                        <div>
-                          <h5 className="mb-0">24 min</h5>
-                          <small className="text-muted">Avg. Response Time</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </>
           )}
 
+          {/* Rest of your component remains the same */}
           {selectedSection === 'availability' && (
             <div className="mt-4">
               <h5>Manage Availability</h5>
@@ -556,13 +533,37 @@ const FreelancerDashboard = () => {
                     <th>Client</th>
                     <th>Date</th>
                     <th>Comment</th>
+                    <th>Rating</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>John Doe</td>
-                    <td>April 30, 2024</td>
-                    <td>Very helpful</td>
+                    <td>John Smith</td>
+                    <td>June 15, 2023</td>
+                    <td>"Excellent service, very professional!"</td>
+                    <td>
+                      <div className="text-warning">
+                        <FaStar />
+                        <FaStar />
+                        <FaStar />
+                        <FaStar />
+                        <FaStar />
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Sarah Johnson</td>
+                    <td>June 10, 2023</td>
+                    <td>"Great work, would recommend!"</td>
+                    <td>
+                      <div className="text-warning">
+                        <FaStar />
+                        <FaStar />
+                        <FaStar />
+                        <FaStar />
+                        <FaStar className="text-muted" />
+                      </div>
+                    </td>
                   </tr>
                 </tbody>
               </table>
