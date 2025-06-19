@@ -343,3 +343,52 @@ def update_appointment_status(request):
         return JsonResponse({'success': False, 'error': 'Appointment not found'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_GET
+def get_freelancer_availabilities(request):
+    try:
+        freelancer_id = request.GET.get('freelancer_id')
+        
+        if not freelancer_id:
+            return JsonResponse({'success': False, 'error': 'freelancer_id required'}, status=400)
+
+        # Verify the user exists and is a freelancer
+        freelancer = UserAccount.objects.get(id=freelancer_id, role='freelancer')
+        
+        # Get all availabilities for this freelancer
+        availabilities = FreelancerAvailability.objects.filter(
+            freelancer=freelancer
+        ).order_by('date', 'start_time')
+
+        # Prepare the response data
+        data = []
+        for avail in availabilities:
+            data.append({
+                'id': avail.id,
+                'date': avail.date.strftime('%Y-%m-%d'),
+                'start_time': avail.start_time.strftime('%H:%M'),
+                'end_time': avail.end_time.strftime('%H:%M'),
+                'status': 'booked' if Appointment.objects.filter(
+                    freelancer=freelancer,
+                    date=avail.date,
+                    start_time=avail.start_time
+                ).exists() else 'available'
+            })
+
+        return JsonResponse({
+            'success': True,
+            'availabilities': data
+        })
+
+    except UserAccount.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Freelancer not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

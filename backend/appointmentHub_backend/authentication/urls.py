@@ -11,5 +11,6 @@ urlpatterns = [
     path('freelancer-appointments/', views.get_freelancer_appointments),
     path('client-appointments/',views.get_client_appointments),
     path('update-appointment-status/',views.update_appointment_status),
+    path('freelancer-availabilities/', views.get_freelancer_availabilities, name='freelancer_availabilities'),
    
 ]
