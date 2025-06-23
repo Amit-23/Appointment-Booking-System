@@ -134,6 +134,8 @@ def login(request):
                 'name': user.name,
                 'email': user.email,
                 'role': user.role,
+                'experience':user.experience,
+                'bio':user.bio,
                 'profession': user.profession if user.role == 'freelancer' else None
             }
         })
