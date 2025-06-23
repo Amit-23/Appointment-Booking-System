@@ -21,10 +21,27 @@ const FreelancerDashboard = () => {
   const [availabilities, setAvailabilities] = useState([]);
   const [selectedSection, setSelectedSection] = useState('dashboard');
   const [earnings, setEarnings] = useState(0);
+  const [profileData, setProfileData] = useState({
+    name: '',
+    email: '',
+    profession: '',
+    experience: '',
+    bio: ''
+  });
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || user.role !== 'freelancer') return;
+
+    // Set initial profile data
+    setProfileData({
+      name: user.name,
+      email: user.email,
+      profession: user.profession || '',
+      experience: user.experience || '',
+      bio: user.bio || ''
+    });
 
     // Fetch appointments
     axios
@@ -128,6 +145,48 @@ const FreelancerDashboard = () => {
       .catch((err) => {
         console.error(err);
         alert('Error updating status');
+      });
+  };
+
+  const handleProfileChange = (e) => {
+    const { name, value } = e.target;
+    setProfileData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleProfileUpdate = () => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'freelancer') {
+      alert('User not authenticated or not a freelancer');
+      return;
+    }
+
+    axios
+      .post('http://127.0.0.1:8000/auth/update-profile/', {
+        user_id: user.id,
+        profession: profileData.profession,
+        experience: profileData.experience,
+        bio: profileData.bio
+      })
+      .then((res) => {
+        if (res.data.success) {
+          alert('Profile updated successfully');
+          setIsEditing(false);
+          // Update local storage with new data
+          const updatedUser = {
+            ...user,
+            profession: profileData.profession,
+            experience: profileData.experience,
+            bio: profileData.bio
+          };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        alert('Error updating profile');
       });
   };
 
@@ -370,7 +429,94 @@ const FreelancerDashboard = () => {
             </>
           )}
 
-          {/* Rest of your component remains the same */}
+          {selectedSection === 'profile' && (
+            <div className="mt-4">
+              <div className="card">
+                <div className="card-header d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0">My Profile</h5>
+                  {isEditing ? (
+                    <div>
+                      <button className="btn btn-sm btn-success me-2" onClick={handleProfileUpdate}>
+                        Save Changes
+                      </button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setIsEditing(false)}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="btn btn-sm btn-primary" onClick={() => setIsEditing(true)}>
+                      Edit Profile
+                    </button>
+                  )}
+                </div>
+                <div className="card-body">
+                  <div className="row mb-4">
+                    <div className="col-md-2">
+                      <div className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center" 
+                           style={{ width: '100px', height: '100px', fontSize: '2rem' }}>
+                        {profileData.name.charAt(0).toUpperCase()}
+                      </div>
+                    </div>
+                    <div className="col-md-10">
+                      <h3>{profileData.name}</h3>
+                      <p className="text-muted">{profileData.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="row">
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">Profession</label>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            className="form-control"
+                            name="profession"
+                            value={profileData.profession}
+                            onChange={handleProfileChange}
+                          />
+                        ) : (
+                          <p>{profileData.profession || 'Not specified'}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">Experience</label>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            className="form-control"
+                            name="experience"
+                            value={profileData.experience}
+                            onChange={handleProfileChange}
+                          />
+                        ) : (
+                          <p>{profileData.experience || 'Not specified'}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Bio</label>
+                    {isEditing ? (
+                      <textarea
+                        className="form-control"
+                        rows="5"
+                        name="bio"
+                        value={profileData.bio}
+                        onChange={handleProfileChange}
+                      />
+                    ) : (
+                      <p>{profileData.bio || 'No bio provided'}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {selectedSection === 'availability' && (
             <div className="mt-4">
               <h5>Manage Availability</h5>

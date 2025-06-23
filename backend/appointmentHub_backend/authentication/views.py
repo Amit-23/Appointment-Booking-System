@@ -392,3 +392,41 @@ def get_freelancer_availabilities(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_profile(request):
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        profession = data.get('profession')
+        experience = data.get('experience')
+        bio = data.get('bio')
+
+        user = UserAccount.objects.get(id=user_id, role='freelancer')
+        
+        if profession is not None:
+            user.profession = profession
+        if experience is not None:
+            user.experience = experience
+        if bio is not None:
+            user.bio = bio
+            
+        user.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Profile updated successfully'
+        })
+
+    except UserAccount.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Freelancer not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
