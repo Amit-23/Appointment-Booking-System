@@ -7,9 +7,11 @@ import {
   FaTachometerAlt,
   FaStar,
   FaClock,
-  FaMoneyBillWave
+  FaMoneyBillWave,
+  FaSignOutAlt
 } from 'react-icons/fa';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const FreelancerDashboard = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -29,6 +31,45 @@ const FreelancerDashboard = () => {
     bio: ''
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+
+
+  const navigate = useNavigate();
+
+  // Add this useEffect at the very top of your component
+  useEffect(() => {
+    // Check authentication on component mount
+    const checkAuth = () => {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const tokens = JSON.parse(localStorage.getItem('tokens'));
+
+      // If no user or tokens, redirect to login
+      if (!user || !tokens?.access) {
+        navigate('/login');
+        return;
+      }
+
+      // Verify the token with backend
+      axios.get('http://127.0.0.1:8000/auth/verify-token/', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access}`
+        }
+      }).catch(() => {
+        // If token verification fails, logout and redirect
+        localStorage.removeItem('user');
+        localStorage.removeItem('tokens');
+        navigate('/login');
+      });
+
+      // Check if user has the right role
+      if (user.role !== 'freelancer') {
+        navigate('/login'); // or back to login
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -63,6 +104,12 @@ const FreelancerDashboard = () => {
     // Fetch availabilities
     fetchAvailabilities(user.id);
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('tokens');
+    window.location.href = '/login';
+  };
 
   const fetchAvailabilities = (freelancerId) => {
     axios
@@ -229,7 +276,64 @@ const FreelancerDashboard = () => {
         }
         .main-content.collapsed { margin-left: 60px; }
         .main-content.expanded { margin-left: 250px; }
+        .logout-btn {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 1000;
+        }
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 2000;
+        }
+        .modal-content {
+          background-color: white;
+          padding: 20px;
+          border-radius: 8px;
+          max-width: 400px;
+          width: 100%;
+        }
       `}</style>
+
+      {/* Logout Modal */}
+      {showLogoutModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h5>Confirm Logout</h5>
+            <p>Are you sure you want to logout?</p>
+            <div className="d-flex justify-content-end gap-2 mt-4">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setShowLogoutModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Button */}
+      <button 
+        className="logout-btn btn btn-danger d-flex align-items-center gap-2"
+        onClick={() => setShowLogoutModal(true)}
+      >
+        <FaSignOutAlt /> Logout
+      </button>
 
       <div className="d-flex">
         {/* Sidebar */}

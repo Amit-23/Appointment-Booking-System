@@ -7,6 +7,23 @@ from django.contrib.auth.hashers import check_password
 from django.contrib.auth.hashers import make_password
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods  
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import AuthenticationFailed
+
+
+@require_GET
+@csrf_exempt
+def verify_token(request):
+    try:
+        # This will automatically verify the token
+        auth = JWTAuthentication()
+        auth.get_validated_token(request.headers.get('Authorization').split(' ')[1])
+        return JsonResponse({'success': True})
+    except Exception as e:
+        raise AuthenticationFailed('Invalid token')
+
+
 @csrf_exempt
 def user_signup(request):
     if request.method == 'POST':
@@ -125,6 +142,9 @@ def login(request):
                 'message': 'Email or password is incorrect'
             }, status=401)
 
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
         # Successful login
         return JsonResponse({
             'success': True,
@@ -134,9 +154,13 @@ def login(request):
                 'name': user.name,
                 'email': user.email,
                 'role': user.role,
-                'experience':user.experience,
-                'bio':user.bio,
+                'experience': user.experience,
+                'bio': user.bio,
                 'profession': user.profession if user.role == 'freelancer' else None
+            },
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
             }
         })
 
@@ -427,6 +451,47 @@ def update_profile(request):
             'success': False,
             'error': 'Freelancer not found'
         }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def refresh_token(request):
+    try:
+        data = json.loads(request.body)
+        refresh_token = data.get('refresh')
+        
+        if not refresh_token:
+            return JsonResponse({
+                'success': False,
+                'error': 'Refresh token is required'
+            }, status=400)
+            
+        try:
+            refresh = RefreshToken(refresh_token)
+            access_token = str(refresh.access_token)
+            
+            return JsonResponse({
+                'success': True,
+                'access': access_token
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid or expired refresh token'
+            }, status=401)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
     except Exception as e:
         return JsonResponse({
             'success': False,

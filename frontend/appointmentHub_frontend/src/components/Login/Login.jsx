@@ -1,9 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import axios from 'axios';
 import Header1 from '../Header1/Header1';
+
+// Create a simple axios instance with base URL
+const api = axios.create({
+  baseURL: 'http://127.0.0.1:8000/',
+});
+
+// Add a request interceptor to include the token
+api.interceptors.request.use(
+  (config) => {
+    const tokens = JSON.parse(localStorage.getItem('tokens'));
+    if (tokens?.access) {
+      config.headers['Authorization'] = `Bearer ${tokens.access}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add a response interceptor to handle token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If error is 401 and we haven't already tried to refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const tokens = JSON.parse(localStorage.getItem('tokens'));
+        if (!tokens?.refresh) {
+          throw new Error('No refresh token');
+        }
+        
+        const response = await axios.post('http://127.0.0.1:8000/auth/token/refresh/', {
+          refresh: tokens.refresh
+        });
+        
+        const newTokens = {
+          ...tokens,
+          access: response.data.access
+        };
+        
+        localStorage.setItem('tokens', JSON.stringify(newTokens));
+        
+        // Retry the original request with new token
+        originalRequest.headers['Authorization'] = `Bearer ${response.data.access}`;
+        return axios(originalRequest);
+      } catch (refreshError) {
+        // If refresh fails, logout the user
+        localStorage.removeItem('user');
+        localStorage.removeItem('tokens');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +74,18 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (user) {
+      if (user.role === 'client') {
+        navigate('/clientdashboard');
+      } else if (user.role === 'freelancer') {
+        navigate('/freelancerdashboard');
+      }
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,19 +103,17 @@ const Login = () => {
       const response = await axios.post('http://127.0.0.1:8000/auth/login/', formData);
       
       if (response.data.success) {
+        // Save user and tokens to localStorage
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('tokens', JSON.stringify(response.data.tokens));
+        
         toast.success('Login successful!');
-        // Store user data in localStorage or context as needed
-         localStorage.setItem('user', JSON.stringify(response.data.user));
         
         // Redirect based on role
         if (response.data.user.role === 'client') {
           setTimeout(() => navigate('/clientdashboard'), 1500);
         } else if (response.data.user.role === 'freelancer') {
           setTimeout(() => navigate('/freelancerdashboard'), 1500);
-        } else {
-          // Handle other roles or unexpected values
-          toast.warning('Unknown user role');
-          setTimeout(() => navigate('/'), 1500);
         }
       }
     } catch (error) {
@@ -107,29 +179,6 @@ const Login = () => {
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        .card {
-          border-radius: 8px;
-          border: none;
-        }
-        .btn-primary {
-          background-color: #0d6efd;
-          border: none;
-          padding: 10px;
-          font-weight: 500;
-        }
-        .btn-primary:hover {
-          background-color: #0b5ed7;
-        }
-        .form-control {
-          padding: 10px;
-          border-radius: 5px;
-        }
-        .form-control:focus {
-          box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-        }
-      `}</style>
     </>
   );
 };
