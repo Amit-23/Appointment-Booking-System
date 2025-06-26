@@ -30,18 +30,20 @@ ALLOWED_HOSTS = []
 
 
 # Application definition
-
 INSTALLED_APPS = [
+    'daphne',  # Must come first for ASGI support
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
+    'django.contrib.staticfiles',  # Only one occurrence
     'corsheaders',
     'authentication',
     'rest_framework',
     'rest_framework_simplejwt',
+    'channels',  # For WebSocket support
+    'chat',
 ]
 
 MIDDLEWARE = [
@@ -75,9 +77,19 @@ TEMPLATES = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-WSGI_APPLICATION = 'appointmentHub_backend.wsgi.application'
 
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+# WSGI_APPLICATION = 'appointmentHub_backend.wsgi.application'
+ASGI_APPLICATION = 'appointmentHub_backend.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases

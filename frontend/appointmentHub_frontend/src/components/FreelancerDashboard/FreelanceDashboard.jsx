@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FaBars,
   FaUser,
@@ -8,10 +8,12 @@ import {
   FaStar,
   FaClock,
   FaMoneyBillWave,
-  FaSignOutAlt
+  FaSignOutAlt,
+  FaComments
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+
 
 const FreelancerDashboard = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -32,50 +34,47 @@ const FreelancerDashboard = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-
-
-
+  const [currentChatAppointment, setCurrentChatAppointment] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [socket, setSocket] = useState(null);
+  const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
-  // Add this useEffect at the very top of your component
+  // Check authentication on component mount
   useEffect(() => {
-    // Check authentication on component mount
     const checkAuth = () => {
       const user = JSON.parse(localStorage.getItem('user'));
       const tokens = JSON.parse(localStorage.getItem('tokens'));
 
-      // If no user or tokens, redirect to login
       if (!user || !tokens?.access) {
         navigate('/login');
         return;
       }
 
-      // Verify the token with backend
       axios.get('http://127.0.0.1:8000/auth/verify-token/', {
         headers: {
           'Authorization': `Bearer ${tokens.access}`
         }
       }).catch(() => {
-        // If token verification fails, logout and redirect
         localStorage.removeItem('user');
         localStorage.removeItem('tokens');
         navigate('/login');
       });
 
-      // Check if user has the right role
       if (user.role !== 'freelancer') {
-        navigate('/login'); // or back to login
+        navigate('/login');
       }
     };
 
     checkAuth();
   }, [navigate]);
 
+  // Load initial data
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || user.role !== 'freelancer') return;
 
-    // Set initial profile data
     setProfileData({
       name: user.name,
       email: user.email,
@@ -84,15 +83,63 @@ const FreelancerDashboard = () => {
       bio: user.bio || ''
     });
 
-    // Fetch appointments
+    fetchAppointments(user.id);
+    fetchAvailabilities(user.id);
+  }, []);
+
+  // WebSocket connection management
+ useEffect(() => {
+  if (selectedSection === 'chat' && currentChatAppointment) {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/chat/${currentChatAppointment.appointment_id}/`;
+    const newSocket = new WebSocket(wsUrl);
+
+    newSocket.onopen = () => {
+      console.log('WebSocket connected');
+      fetchChatMessages(currentChatAppointment.appointment_id);
+    };
+
+    newSocket.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      setMessages(prev => [...prev, data]);
+      scrollToBottom();
+    };
+
+    newSocket.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    newSocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    setSocket(newSocket);
+
+    return () => {
+      if (newSocket.readyState === WebSocket.OPEN) {
+        newSocket.close();
+      }
+    };
+  }
+}, [selectedSection, currentChatAppointment]);
+
+  // Auto-scroll to bottom of chat
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const fetchAppointments = (freelancerId) => {
     axios
       .get('http://127.0.0.1:8000/auth/freelancer-appointments/', {
-        params: { freelancer_id: user.id },
+        params: { freelancer_id: freelancerId },
       })
       .then((res) => {
         if (res.data.success) {
           setAppointments(res.data.appointments);
-          // Calculate earnings from completed appointments
           const completedEarnings = res.data.appointments
             .filter(a => a.status === 'completed')
             .reduce((sum, appt) => sum + (appt.price || 0), 0);
@@ -100,15 +147,6 @@ const FreelancerDashboard = () => {
         }
       })
       .catch((err) => console.error('Failed to fetch appointments:', err));
-
-    // Fetch availabilities
-    fetchAvailabilities(user.id);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('tokens');
-    window.location.href = '/login';
   };
 
   const fetchAvailabilities = (freelancerId) => {
@@ -122,6 +160,24 @@ const FreelancerDashboard = () => {
         }
       })
       .catch((err) => console.error('Failed to fetch availabilities:', err));
+  };
+
+  const fetchChatMessages = (appointmentId) => {
+    axios
+      .get(`http://127.0.0.1:8000/chat/messages/?appointment_id=${appointmentId}`)
+      .then((res) => {
+        if (res.data.success) {
+          setMessages(res.data.messages);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch messages:', err));
+  };
+
+  const handleLogout = () => {
+    if (socket) socket.close();
+    localStorage.removeItem('user');
+    localStorage.removeItem('tokens');
+    window.location.href = '/login';
   };
 
   const handleAddAvailability = () => {
@@ -169,7 +225,6 @@ const FreelancerDashboard = () => {
                 : a
             )
           );
-          // Update earnings if status changed to/from completed
           if (newStatus === 'completed' || res.data.previous_status === 'completed') {
             const user = JSON.parse(localStorage.getItem('user'));
             axios
@@ -221,7 +276,6 @@ const FreelancerDashboard = () => {
         if (res.data.success) {
           alert('Profile updated successfully');
           setIsEditing(false);
-          // Update local storage with new data
           const updatedUser = {
             ...user,
             profession: profileData.profession,
@@ -235,6 +289,32 @@ const FreelancerDashboard = () => {
         console.error(err);
         alert('Error updating profile');
       });
+  };
+
+  const sendMessage = () => {
+  if (socket && socket.readyState === WebSocket.OPEN && newMessage.trim()) {
+    socket.send(JSON.stringify({
+      message: newMessage.trim(),
+      sender: profileData.name,
+      timestamp: new Date().toISOString()
+    }));
+    setNewMessage('');
+  }
+};
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  };
+
+  const startChat = (appointment) => {
+    if (appointment.status === 'accepted') {
+      setCurrentChatAppointment(appointment);
+      setSelectedSection('chat');
+    } else {
+      alert('You can only chat with clients for accepted appointments');
+    }
   };
 
   // Calculate appointment statistics
@@ -300,6 +380,43 @@ const FreelancerDashboard = () => {
           border-radius: 8px;
           max-width: 400px;
           width: 100%;
+        }
+        .chat-message-container {
+          height: 400px;
+          overflow-y: auto;
+          padding: 10px;
+          background-color: #f8f9fa;
+          border-radius: 8px;
+          margin-bottom: 15px;
+        }
+        .message-bubble {
+          max-width: 70%;
+          padding: 8px 12px;
+          border-radius: 18px;
+          margin-bottom: 8px;
+          word-wrap: break-word;
+        }
+        .sent-message {
+          background-color: #0d6efd;
+          color: white;
+          margin-left: auto;
+          border-bottom-right-radius: 4px;
+        }
+        .received-message {
+          background-color: #e9ecef;
+          color: #212529;
+          margin-right: auto;
+          border-bottom-left-radius: 4px;
+        }
+        .message-sender {
+          font-size: 0.8rem;
+          font-weight: bold;
+          margin-bottom: 2px;
+        }
+        .message-time {
+          font-size: 0.7rem;
+          color: #6c757d;
+          text-align: right;
         }
       `}</style>
 
@@ -367,6 +484,18 @@ const FreelancerDashboard = () => {
               </a>
             </li>
             <li className="nav-item mb-3">
+              <a className={`nav-link ${selectedSection === 'chat' ? 'active' : ''}`} onClick={() => {
+                if (currentChatAppointment) {
+                  setSelectedSection('chat');
+                } else {
+                  alert('Please select an accepted appointment to chat');
+                }
+              }}>
+                <FaComments />
+                <span className="nav-label">Chat</span>
+              </a>
+            </li>
+            <li className="nav-item mb-3">
               <a className={`nav-link ${selectedSection === 'reviews' ? 'active' : ''}`} onClick={() => setSelectedSection('reviews')}>
                 <FaStar />
                 <span className="nav-label">Client Reviews</span>
@@ -399,10 +528,6 @@ const FreelancerDashboard = () => {
                   </div>
                 </div>
                 
-              </div>
-
-              {/* Additional Stats Row */}
-              <div className="row mb-4">
                 <div className="col-md-3">
                   <div className="card bg-secondary text-white p-3">
                     <h6>Accepted</h6>
@@ -410,23 +535,23 @@ const FreelancerDashboard = () => {
                     <small>Upcoming sessions</small>
                   </div>
                 </div>
+                
                 <div className="col-md-3">
-                  <div className="card bg-danger text-white p-3">
-                    <h6>Rejected</h6>
-                    <h3>{rejectedAppointments}</h3>
-                    <small>Declined appointments</small>
+                  <div className="card bg-success text-white p-3">
+                    <h6>Earnings</h6>
+                    <h3>${earnings}</h3>
+                    <small>Total earned</small>
                   </div>
                 </div>
-                
-               
               </div>
 
-            
               {/* Upcoming Appointments */}
               <div className="card mb-4">
                 <div className="card-header d-flex justify-content-between align-items-center">
                   <h5 className="mb-0">Upcoming Appointments</h5>
-                  <button className="btn btn-sm btn-outline-primary">View All</button>
+                  <button className="btn btn-sm btn-outline-primary" onClick={() => setSelectedSection('appointments')}>
+                    View All
+                  </button>
                 </div>
                 <div className="card-body">
                   {appointments
@@ -440,9 +565,17 @@ const FreelancerDashboard = () => {
                             {appt.date} at {appt.start_time}
                           </small>
                         </div>
-                        <span className="badge bg-success">
-                          Accepted
-                        </span>
+                        <div>
+                          <span className="badge bg-success me-2">
+                            Accepted
+                          </span>
+                          <button 
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => startChat(appt)}
+                          >
+                            Chat
+                          </button>
+                        </div>
                       </div>
                     ))}
                   {appointments.filter(a => a.status === 'accepted').length === 0 && (
@@ -450,49 +583,6 @@ const FreelancerDashboard = () => {
                       No upcoming appointments
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* Recent Reviews */}
-              <div className="card mb-4">
-                <div className="card-header">
-                  <h5 className="mb-0">Recent Reviews</h5>
-                </div>
-                <div className="card-body">
-                  <div className="d-flex align-items-start mb-3">
-                    <img src="https://via.placeholder.com/40" alt="Client" className="rounded-circle me-3" />
-                    <div>
-                      <div className="d-flex align-items-center mb-1">
-                        <h6 className="mb-0 me-2">John Smith</h6>
-                        <div className="text-warning">
-                          <FaStar />
-                          <FaStar />
-                          <FaStar />
-                          <FaStar />
-                          <FaStar className="text-muted" />
-                        </div>
-                      </div>
-                      <p className="mb-0">"Great service! Very professional and knowledgeable."</p>
-                      <small className="text-muted">2 days ago</small>
-                    </div>
-                  </div>
-                  <div className="d-flex align-items-start">
-                    <img src="https://via.placeholder.com/40" alt="Client" className="rounded-circle me-3" />
-                    <div>
-                      <div className="d-flex align-items-center mb-1">
-                        <h6 className="mb-0 me-2">Sarah Johnson</h6>
-                        <div className="text-warning">
-                          <FaStar />
-                          <FaStar />
-                          <FaStar />
-                          <FaStar />
-                          <FaStar />
-                        </div>
-                      </div>
-                      <p className="mb-0">"Excellent service! Will definitely book again."</p>
-                      <small className="text-muted">1 week ago</small>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -522,9 +612,12 @@ const FreelancerDashboard = () => {
                       </button>
                     </div>
                     <div className="col-md-4 mb-3">
-                      <button className="btn btn-outline-info w-100 d-flex flex-column align-items-center py-3">
-                        <FaUserCog size={24} className="mb-2" />
-                        <span>Settings</span>
+                      <button 
+                        className="btn btn-outline-info w-100 d-flex flex-column align-items-center py-3"
+                        onClick={() => setSelectedSection('chat')}
+                      >
+                        <FaComments size={24} className="mb-2" />
+                        <span>Chat</span>
                       </button>
                     </div>
                   </div>
@@ -730,7 +823,7 @@ const FreelancerDashboard = () => {
                     <th>Date</th>
                     <th>Time</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -762,6 +855,13 @@ const FreelancerDashboard = () => {
                               <button className="btn btn-sm btn-success me-2" onClick={() => handleChangeStatus(appt.appointment_id, 'accepted')}>Accept</button>
                               <button className="btn btn-sm btn-danger" onClick={() => handleChangeStatus(appt.appointment_id, 'rejected')}>Reject</button>
                             </>
+                          ) : appt.status === 'accepted' ? (
+                            <button 
+                              className="btn btn-sm btn-primary"
+                              onClick={() => startChat(appt)}
+                            >
+                              Chat
+                            </button>
                           ) : (
                             <span className="text-muted">No actions</span>
                           )}
@@ -771,6 +871,87 @@ const FreelancerDashboard = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {selectedSection === 'chat' && (
+            <div className="mt-4">
+              <div className="card">
+                <div className="card-header d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0">
+                    {currentChatAppointment ? 
+                      `Chat with ${currentChatAppointment.client_name}` : 
+                      'Select an appointment to chat'}
+                  </h5>
+                  {currentChatAppointment && (
+                    <button 
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => setSelectedSection('appointments')}
+                    >
+                      Back to Appointments
+                    </button>
+                  )}
+                </div>
+                
+                {currentChatAppointment ? (
+                  <>
+                    <div className="card-body">
+                      <div className="chat-message-container">
+                        {messages.length === 0 ? (
+                          <p className="text-center text-muted">No messages yet. Start the conversation!</p>
+                        ) : (
+                          messages.map((msg, idx) => (
+                            <div 
+                              key={idx} 
+                              className={`message-bubble ${
+                                msg.sender === profileData.name ? 'sent-message' : 'received-message'
+                              }`}
+                            >
+                              <div className="message-sender">
+                                {msg.sender === profileData.name ? 'You' : msg.sender}
+                              </div>
+                              <div>{msg.message}</div>
+                              <div className="message-time">
+                                {msg.timestamp}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    </div>
+                    <div className="card-footer">
+                      <div className="input-group">
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          placeholder="Type your message..."
+                        />
+                        <button 
+                          className="btn btn-primary" 
+                          onClick={sendMessage}
+                          disabled={!newMessage.trim()}
+                        >
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="card-body text-center">
+                    <p>Please select an accepted appointment from the Appointments section to start chatting.</p>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={() => setSelectedSection('appointments')}
+                    >
+                      Go to Appointments
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

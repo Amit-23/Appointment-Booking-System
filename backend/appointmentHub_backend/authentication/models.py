@@ -33,7 +33,15 @@ class Appointment(models.Model):
         ('cancelled', 'Cancelled'),
         ('completed', 'Completed'),
     ]
+    chat_enabled = models.BooleanField(default=False)
+    
+    def save(self, *args, **kwargs):
+        # Enable chat when status changes to accepted
+        if self.status == 'accepted' and not self.chat_enabled:
+            self.chat_enabled = True
+        super().save(*args, **kwargs)
 
+        
     client = models.ForeignKey(
         'UserAccount',
         on_delete=models.CASCADE,

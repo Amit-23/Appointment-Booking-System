@@ -350,21 +350,24 @@ def get_client_appointments(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def update_appointment_status(request):
-    """
-    Expects JSON: { appointment_id: int, status: 'accepted'|'rejected' }
-    """
     try:
         data = json.loads(request.body)
-        appt_id   = data.get('appointment_id')
+        appt_id = data.get('appointment_id')
         new_status = data.get('status')
+        
         if new_status not in ('accepted', 'rejected'):
             return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
 
         appt = Appointment.objects.get(id=appt_id)
         appt.status = new_status
-        appt.save()
+        appt.save()  # This will automatically set chat_enabled if status is 'accepted'
 
-        return JsonResponse({'success': True, 'appointment_id': appt.id, 'new_status': new_status})
+        return JsonResponse({
+            'success': True, 
+            'appointment_id': appt.id, 
+            'new_status': new_status,
+            'chat_enabled': appt.chat_enabled
+        })
     except Appointment.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Appointment not found'}, status=404)
     except Exception as e:

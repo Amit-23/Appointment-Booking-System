@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FaBars,
   FaSearch,
@@ -6,9 +6,11 @@ import {
   FaUserCog,
   FaTachometerAlt,
   FaSignOutAlt,
+  FaComments
 } from 'react-icons/fa';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+
 
 const ClientDashboard = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -21,6 +23,12 @@ const ClientDashboard = () => {
   const [clientName, setClientName] = useState('');
   const [loadingFreelancers, setLoadingFreelancers] = useState(false);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
+  const [selectedSection, setSelectedSection] = useState('search');
+  const [currentChatAppointment, setCurrentChatAppointment] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [socket, setSocket] = useState(null);
+  const messagesEndRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -74,6 +82,61 @@ const ClientDashboard = () => {
       .catch((err) => console.error(err));
   }, []);
 
+  // WebSocket connection management
+ useEffect(() => {
+  if (selectedSection === 'chat' && currentChatAppointment) {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/chat/${currentChatAppointment.appointment_id}/`;
+    const newSocket = new WebSocket(wsUrl);
+
+    newSocket.onopen = () => {
+      console.log('WebSocket connected');
+      fetchChatMessages(currentChatAppointment.appointment_id);
+    };
+
+    newSocket.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      setMessages(prev => [...prev, data]);
+      scrollToBottom();
+    };
+
+    newSocket.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    newSocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    setSocket(newSocket);
+
+    return () => {
+      if (newSocket.readyState === WebSocket.OPEN) {
+        newSocket.close();
+      }
+    };
+  }
+}, [selectedSection, currentChatAppointment]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const fetchChatMessages = (appointmentId) => {
+    axios
+      .get(`http://127.0.0.1:8000/chat/messages/?appointment_id=${appointmentId}`)
+      .then((res) => {
+        if (res.data.success) {
+          setMessages(res.data.messages);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch messages:', err));
+  };
+
   const handleSearch = () => {
     if (!selectedDate) return alert('Please select a date');
     setLoadingFreelancers(true);
@@ -97,14 +160,64 @@ const ClientDashboard = () => {
         date: selectedDate,
         start_time: f.start_time,
       })
-      .then((res) => alert(res.data.success ? 'Booked!' : res.data.message || 'Error'))
+      .then((res) => {
+        if (res.data.success) {
+          alert('Appointment booked successfully!');
+          // Refresh appointments list
+          fetchAppointments();
+        } else {
+          alert(res.data.message || 'Error booking appointment');
+        }
+      })
       .catch((err) => alert('Failed: ' + err.message));
   };
 
   const handleLogout = () => {
+    if (socket) socket.close();
     localStorage.removeItem('user');
     localStorage.removeItem('tokens');
     window.location.href = '/login';
+  };
+
+  const sendMessage = () => {
+  if (socket && socket.readyState === WebSocket.OPEN && newMessage.trim()) {
+    socket.send(JSON.stringify({
+      message: newMessage.trim(),
+      sender: profileData.name,
+      timestamp: new Date().toISOString()
+    }));
+    setNewMessage('');
+  }
+};
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  };
+
+  const startChat = (appointment) => {
+    if (appointment.status === 'accepted') {
+      setCurrentChatAppointment(appointment);
+      setSelectedSection('chat');
+    } else {
+      alert('You can only chat with freelancers for accepted appointments');
+    }
+  };
+
+  const fetchAppointments = () => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || user.role !== 'client') return;
+    setLoadingAppointments(true);
+    axios
+      .get('http://127.0.0.1:8000/auth/client-appointments/', {
+        params: { client_id: user.id },
+      })
+      .then((res) => {
+        if (res.data.success) setMyAppointments(res.data.appointments);
+      })
+      .catch((err) => console.error(err))
+      .finally(() => setLoadingAppointments(false));
   };
 
   return (
@@ -136,6 +249,43 @@ const ClientDashboard = () => {
           display: flex; align-items: center; justify-content: center; z-index: 2000; }
         .modal-content { background: white; border-radius: 8px; padding: 24px;
           width: 320px; max-width: 90%; text-align: center; }
+        .chat-message-container {
+          height: 400px;
+          overflow-y: auto;
+          padding: 10px;
+          background-color: #f8f9fa;
+          border-radius: 8px;
+          margin-bottom: 15px;
+        }
+        .message-bubble {
+          max-width: 70%;
+          padding: 8px 12px;
+          border-radius: 18px;
+          margin-bottom: 8px;
+          word-wrap: break-word;
+        }
+        .sent-message {
+          background-color: #0d6efd;
+          color: white;
+          margin-left: auto;
+          border-bottom-right-radius: 4px;
+        }
+        .received-message {
+          background-color: #e9ecef;
+          color: #212529;
+          margin-right: auto;
+          border-bottom-left-radius: 4px;
+        }
+        .message-sender {
+          font-size: 0.8rem;
+          font-weight: bold;
+          margin-bottom: 2px;
+        }
+        .message-time {
+          font-size: 0.7rem;
+          color: #6c757d;
+          text-align: right;
+        }
       `}</style>
 
       {/* Sidebar */}
@@ -145,17 +295,33 @@ const ClientDashboard = () => {
           {!collapsed && <span style={{ fontWeight: 'bold' }}>Menu</span>}
         </div>
         <nav className="nav flex-column">
-          {[
-            {icon: <FaTachometerAlt />, label: 'Dashboard'},
-            {icon: <FaSearch />, label: 'Search & Book'},
-            // {icon: <FaCalendarAlt />, label: 'My Appointments'},
-            // {icon: <FaUserCog />, label: 'Profile Settings'},
-          ].map((item, i) => (
-            <a key={i} href="#" className="nav-link">
-              {item.icon}
-              <span className="nav-label">{item.label}</span>
-            </a>
-          ))}
+          <a 
+            className={`nav-link ${selectedSection === 'search' ? 'active' : ''}`} 
+            onClick={() => setSelectedSection('search')}
+          >
+            <FaSearch />
+            <span className="nav-label">Search & Book</span>
+          </a>
+          <a 
+            className={`nav-link ${selectedSection === 'appointments' ? 'active' : ''}`} 
+            onClick={() => setSelectedSection('appointments')}
+          >
+            <FaCalendarAlt />
+            <span className="nav-label">My Appointments</span>
+          </a>
+          <a 
+            className={`nav-link ${selectedSection === 'chat' ? 'active' : ''}`} 
+            onClick={() => {
+              if (currentChatAppointment) {
+                setSelectedSection('chat');
+              } else {
+                alert('Please select an accepted appointment to chat');
+              }
+            }}
+          >
+            <FaComments />
+            <span className="nav-label">Chat</span>
+          </a>
         </nav>
       </div>
 
@@ -170,96 +336,211 @@ const ClientDashboard = () => {
 
       {/* Main Content */}
       <div className={`main ${collapsed ? 'collapsed' : ''}`}>
-       
-
-        <div className="mb-4 p-4 bg-white rounded shadow-sm">
-          <h5>Search & Book</h5>
-          <div className="row g-3 align-items-end">
-            <div className="col-md-3">
-              <label>Category</label>
-              <select className="form-select" value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}>
-                <option value="">Select</option>
-                {categories.map((c, i) => <option key={i}>{c}</option>)}
-              </select>
-            </div>
-            <div className="col-md-3">
-              <label>Date</label>
-              <input type="date" className="form-control" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
-            </div>
-            <div className="col-md-3">
-              <button className="btn btn-primary w-100" onClick={handleSearch}>
-                {loadingFreelancers ? <span className="spinner-border spinner-border-sm"></span> : <FaSearch />} Search
-              </button>
+        {selectedSection === 'search' && (
+          <div className="mb-4 p-4 bg-white rounded shadow-sm">
+            <h5>Search & Book</h5>
+            <div className="row g-3 align-items-end">
+              <div className="col-md-3">
+                <label>Category</label>
+                <select 
+                  className="form-select" 
+                  value={selectedCategory} 
+                  onChange={e => setSelectedCategory(e.target.value)}
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((c, i) => (
+                    <option key={i} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-md-3">
+                <label>Date</label>
+                <input 
+                  type="date" 
+                  className="form-control" 
+                  value={selectedDate} 
+                  onChange={e => setSelectedDate(e.target.value)} 
+                />
+              </div>
+              <div className="col-md-3">
+                <button 
+                  className="btn btn-primary w-100" 
+                  onClick={handleSearch}
+                  disabled={!selectedDate}
+                >
+                  {loadingFreelancers ? (
+                    <span className="spinner-border spinner-border-sm"></span>
+                  ) : (
+                    <FaSearch />
+                  )} Search
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="mb-5">
-          <h5>Available Freelancers</h5>
-          {loadingFreelancers ? (
-            <div className="text-center"><div className="spinner-border"></div></div>
-          ) : availableFreelancers.length === 0 ? (
-            <p>No freelancers found for this search.</p>
-          ) : (
-            <div className="row">
-              {availableFreelancers.map((f, i) => (
-                <div className="col-md-4 mb-3" key={i}>
-                  <div className="freelancer-card">
-                    <h6>{f.name} <small className="text-muted">({f.profession})</small></h6>
-                    <p>Email: {f.email}</p>
-                    <p>Time: {f.start_time} - {f.end_time}</p>
-                    <button
-                      className="btn btn-success"
-                      onClick={() => handleBookAppointment(f)}
-                    >
-                      Book Appointment
-                    </button>
+        {selectedSection === 'search' && (
+          <div className="mb-5">
+            <h5>Available Freelancers</h5>
+            {loadingFreelancers ? (
+              <div className="text-center"><div className="spinner-border"></div></div>
+            ) : availableFreelancers.length === 0 ? (
+              <p>No freelancers found for this search.</p>
+            ) : (
+              <div className="row">
+                {availableFreelancers.map((f, i) => (
+                  <div className="col-md-4 mb-3" key={i}>
+                    <div className="freelancer-card">
+                      <h6>{f.name} <small className="text-muted">({f.profession})</small></h6>
+                      <p>Email: {f.email}</p>
+                      <p>Time: {f.start_time} - {f.end_time}</p>
+                      <button
+                        className="btn btn-success"
+                        onClick={() => handleBookAppointment(f)}
+                      >
+                        Book Appointment
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mb-5">
-          <h5>My Appointments</h5>
-          {loadingAppointments ? (
-            <div className="text-center"><div className="spinner-border"></div></div>
-          ) : (
-            <table className="table table-hover rounded shadow-sm">
-              <thead className="table-light">
-                <tr>
-                  <th>Freelancer</th>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {myAppointments.length === 0 ? (
-                  <tr><td colSpan="4" className="text-center">No appointments yet</td></tr>
-                ) : myAppointments.map((a, i) => (
-                  <tr key={i}>
-                    <td>{a.freelancer_name}</td>
-                    <td>{a.date}</td>
-                    <td>{a.start_time}</td>
-                    <td>
-                      <span className={`badge ${
-                        a.status === 'pending' ? 'bg-warning text-dark' :
-                        a.status === 'accepted' ? 'bg-success' :
-                        a.status === 'rejected' ? 'bg-danger' :
-                        a.status === 'cancelled' ? 'bg-secondary' :
-                        a.status === 'completed' ? 'bg-info' : 'bg-light'
-                      }`}>
-                        {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
-                      </span>
-                    </td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedSection === 'appointments' && (
+          <div className="mb-5">
+            <h5>My Appointments</h5>
+            {loadingAppointments ? (
+              <div className="text-center"><div className="spinner-border"></div></div>
+            ) : (
+              <table className="table table-hover rounded shadow-sm">
+                <thead className="table-light">
+                  <tr>
+                    <th>Freelancer</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myAppointments.length === 0 ? (
+                    <tr><td colSpan="5" className="text-center">No appointments yet</td></tr>
+                  ) : myAppointments.map((a, i) => (
+                    <tr key={i}>
+                      <td>{a.freelancer_name}</td>
+                      <td>{a.date}</td>
+                      <td>{a.start_time}</td>
+                      <td>
+                        <span className={`badge ${
+                          a.status === 'pending' ? 'bg-warning text-dark' :
+                          a.status === 'accepted' ? 'bg-success' :
+                          a.status === 'rejected' ? 'bg-danger' :
+                          a.status === 'cancelled' ? 'bg-secondary' :
+                          a.status === 'completed' ? 'bg-info' : 'bg-light'
+                        }`}>
+                          {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                        </span>
+                      </td>
+                      <td>
+                        {a.status === 'accepted' && (
+                          <button 
+                            className="btn btn-sm btn-primary"
+                            onClick={() => startChat(a)}
+                          >
+                            Chat
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {selectedSection === 'chat' && (
+          <div className="mt-4">
+            <div className="card">
+              <div className="card-header d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">
+                  {currentChatAppointment ? 
+                    `Chat with ${currentChatAppointment.freelancer_name}` : 
+                    'Select an appointment to chat'}
+                </h5>
+                {currentChatAppointment && (
+                  <button 
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => setSelectedSection('appointments')}
+                  >
+                    Back to Appointments
+                  </button>
+                )}
+              </div>
+              
+              {currentChatAppointment ? (
+                <>
+                  <div className="card-body">
+                    <div className="chat-message-container">
+                      {messages.length === 0 ? (
+                        <p className="text-center text-muted">No messages yet. Start the conversation!</p>
+                      ) : (
+                        messages.map((msg, idx) => (
+                          <div 
+                            key={idx} 
+                            className={`message-bubble ${
+                              msg.sender === clientName ? 'sent-message' : 'received-message'
+                            }`}
+                          >
+                            <div className="message-sender">
+                              {msg.sender === clientName ? 'You' : msg.sender}
+                            </div>
+                            <div>{msg.message}</div>
+                            <div className="message-time">
+                              {msg.timestamp}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </div>
+                  <div className="card-footer">
+                    <div className="input-group">
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Type your message..."
+                      />
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={sendMessage}
+                        disabled={!newMessage.trim()}
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="card-body text-center">
+                  <p>Please select an accepted appointment from the Appointments section to start chatting.</p>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => setSelectedSection('appointments')}
+                  >
+                    Go to Appointments
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Logout Modal */}
